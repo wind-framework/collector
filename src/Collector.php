@@ -2,14 +2,12 @@
 
 namespace Wind\Collector;
 
-use Amp\Deferred;
+use Amp\DeferredFuture;
 use Wind\Base\Channel;
 use Wind\Base\Config;
 use Wind\Utils\StrUtil;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Workerman\Timer;
-
-use function Amp\await;
 
 abstract class Collector
 {
@@ -46,14 +44,14 @@ abstract class Collector
 
         $channel = di()->get(Channel::class);
 
-        $defer = new Deferred();
+        $defer = new DeferredFuture();
         $response = [];
 
         //超时设置
         $timerId = Timer::add($config['timeout'], function() use (&$countDown, $event, $defer, &$response, $channel) {
             if ($countDown > 0) {
                 $channel->unsubscribe($event);
-                $defer->resolve($response);
+                $defer->complete($response);
             }
         }, [], false);
 
@@ -67,7 +65,7 @@ abstract class Collector
             if (--$countDown == 0) {
                 Timer::del($timerId);
                 $channel->unsubscribe($event);
-                $defer->resolve($response);
+                $defer->complete($response);
                 $eventDispatcher->dispatch(new CollectorEvent($worker->id, $worker->name, $event, 'finished'));
             }
         });
@@ -75,7 +73,7 @@ abstract class Collector
         di()->get(EventDispatcherInterface::class)->dispatch(new CollectorEvent($worker->id, $worker->name, $event, 'request'));
         $channel->publish(self::class, $event);
 
-        return await($defer->promise());
+        return $defer->getFuture()->await();
     }
 
 }
