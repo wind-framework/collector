@@ -20,6 +20,11 @@ class Component implements \Wind\Base\Component
 
     public static function start($worker)
     {
+        //Collector only work in server mode
+        if (WIND_MODE != 'server') {
+            return;
+        }
+
         self::$currentWorker = $worker;
 
         $channel = di()->get(Channel::class);
